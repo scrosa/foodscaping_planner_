@@ -157,13 +157,9 @@ else:
     st.markdown(
         """
         **Como usar**
-        1. Carrega uma foto nítida, de dia, em perspetiva (não só zenital).
+        1. Carrega uma foto nítida, de dia, em perspetiva.
         2. Preenche clima, sol, irrigação e restrições na barra lateral.
         3. O agente devolve análise, conceito, paleta 80% perene/comestível,
-           zonas, manutenção e o prompt para transformar a foto.
-
-        Ainda não gera o pixels do “depois” sozinho: exporta o prompt de
-        img2img para Midjourney / Flux / SD / editor com ControlNet
-        (depth + canny), com a foto como referência.
+           zonas, manutenção e uma foto de acordo com prompt produzido.
         """
     )
