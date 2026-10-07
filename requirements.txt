@@ -4,5 +4,7 @@ pydantic>=2.0.0
 python-dotenv>=1.0.0
 transformers
 torch
+diffusers
+accelerate
 Pillow
 matplotlib>=3.5.0
