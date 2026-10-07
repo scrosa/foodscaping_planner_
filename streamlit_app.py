@@ -3,69 +3,11 @@ from __future__ import annotations
 import json
 from io import BytesIO
 
-import matplotlib.pyplot as plt
 import streamlit as st
 from PIL import Image
 
 from agent.planner import FoodscapingPlanner
 from agent.vision import analyze_photo
-
-
-def generate_zone_diagram(plan: dict) -> plt.Figure:
-    """Generate a simple schematic of the planting layout."""
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 10)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    ax.text(5, 9.5, "Esquema do jardim", ha="center", va="center", fontsize=16, weight="bold")
-
-    # Base ground
-    ax.add_patch(plt.Rectangle((0.5, 0.8), 9, 7.8, facecolor="#e8f5e9", edgecolor="none"))
-
-    # Anchor trees (circles)
-    anchor_species = plan.get("anchor_species", [])
-    tree_positions = [(1.8, 6.8), (4.5, 7.2), (7.2, 6.8), (8.2, 4.8)]
-    for i, (x, y) in enumerate(tree_positions[: len(anchor_species) or 3]):
-        ax.add_patch(plt.Circle((x, y), 0.55, color="#8d6e63", alpha=0.85, ec="black", lw=0.5))
-        ax.text(x, y, anchor_species[i] if i < len(anchor_species) else "Árvore", ha="center", va="center", fontsize=8)
-
-    # Hedge / shrub strips (rectangles)
-    ax.add_patch(plt.Rectangle((1.0, 3.4), 2.5, 1.0, facecolor="#66bb6a", edgecolor="black", lw=1))
-    ax.add_patch(plt.Rectangle((5.8, 3.4), 2.8, 1.0, facecolor="#66bb6a", edgecolor="black", lw=1))
-    ax.text(2.25, 3.9, "Framboeseira + Feijoa", ha="center", va="center", fontsize=8)
-    ax.text(7.2, 3.9, "Framboeseira + Feijoa", ha="center", va="center", fontsize=8)
-
-    # Border line of aromatic plants (small circles)
-    border_x = [1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.8]
-    for x in border_x:
-        ax.add_patch(plt.Circle((x, 1.6), 0.18, color="#7cb342", ec="black", lw=0.5))
-    ax.text(5.0, 1.2, "Bordadura: Alecrim / Tomilho", ha="center", va="center", fontsize=9)
-
-    # Striped area = strawberry replacing lawn
-    ax.add_patch(plt.Rectangle((1.0, 5.0), 7.2, 1.1, facecolor="#d9f2d9", edgecolor="black", lw=1))
-    for xx in range(1, 8):
-        for yy in [5.05, 5.45, 5.85, 6.05]:
-            ax.plot([xx, xx + 0.4], [yy, yy + 0.3], color="#7ecb73", lw=3)
-    ax.text(4.6, 5.55, "Morangueiro substitui relvado", ha="center", va="center", fontsize=8)
-
-    # Annual bed in red / geometric patch
-    ax.add_patch(plt.Rectangle((3.1, 7.2), 3.4, 1.1, facecolor="#f4cccc", edgecolor="black", lw=1.2))
-    ax.text(4.8, 7.7, "Piri-piri / canteiro anual 20%", ha="center", va="center", fontsize=8, color="#7a1f1f")
-
-    # Legend
-    ax.text(0.7, 0.4, "Legenda:", fontsize=10, weight="bold")
-    ax.add_patch(plt.Circle((1.8, 0.4), 0.18, color="#8d6e63", alpha=0.85))
-    ax.text(2.2, 0.4, "árvore âncora", fontsize=8)
-    ax.add_patch(plt.Rectangle((4.2, 0.25), 0.6, 0.35, facecolor="#66bb6a", edgecolor="black"))
-    ax.text(5.2, 0.4, "sebe", fontsize=8)
-    ax.add_patch(plt.Rectangle((6.6, 0.25), 0.6, 0.35, facecolor="#d9f2d9", edgecolor="black"))
-    ax.text(7.6, 0.4, "morangueiro", fontsize=8)
-    ax.add_patch(plt.Rectangle((8.8, 0.25), 0.6, 0.35, facecolor="#f4cccc", edgecolor="black"))
-    ax.text(9.8, 0.4, "anual", fontsize=8)
-
-    return fig
-
 
 st.set_page_config(page_title="foodscaping_planner", layout="wide")
 st.title("foodscaping_planner")
@@ -107,8 +49,10 @@ photo = st.file_uploader(
 
 if photo:
     image = Image.open(photo).convert("RGB")
-    st.subheader("Antes")
-    st.image(image, use_container_width=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("Antes")
+        st.image(image, use_container_width=True)
 
     analysis = analyze_photo(image, user_space=space_type)
     plan = planner.plan(
@@ -124,11 +68,23 @@ if photo:
         assumed_climate=assumed or climate == "mediterranean",
     )
 
+    with col_b:
+        st.subheader("Depois (brief de imagem)")
+        st.info(
+            "Usa o prompt abaixo num editor img2img / inpainting, "
+            "com a foto original como referência (depth + edges)."
+        )
+        st.code(plan["image_prompt"], language="text")
+        st.caption("Negative prompt")
+        st.code(plan["negative_prompt"], language="text")
+
     st.divider()
     st.subheader("1. Análise do sítio")
     if plan["context"]["assumed_climate"]:
         st.warning(f"Clima assumido: **{plan['context']['climate']}**.")
-    st.write(f"- Espaço: **{analysis.likely_space}** ({analysis.width}×{analysis.height}px)")
+    st.write(
+        f"- Espaço: **{analysis.likely_space}** ({analysis.width}×{analysis.height}px)"
+    )
     for note in analysis.notes:
         st.write(f"- {note}")
 
@@ -167,14 +123,17 @@ if photo:
     st.dataframe(rows, use_container_width=True)
 
     st.subheader("5. Esquema por zonas")
-    st.pyplot(generate_zone_diagram(plan))
+    for zone, plants in plan["zones"].items():
+        st.markdown(f"**{zone}**")
+        for line in plants:
+            st.write(f"- {line}")
 
     st.subheader("6. Manutenção")
-    tab1, tab2 = st.tabs(["1.º ano", "Anos seguintes"])
-    with tab1:
+    t1, t2 = st.tabs(["1.º ano", "Anos seguintes"])
+    with t1:
         for line in plan["maintenance"]["ano_1"]:
             st.write(f"- {line}")
-    with tab2:
+    with t2:
         for line in plan["maintenance"]["anos_seguintes"]:
             st.write(f"- {line}")
 
@@ -201,6 +160,6 @@ else:
         1. Carrega uma foto nítida, de dia, em perspetiva.
         2. Preenche clima, sol, irrigação e restrições na barra lateral.
         3. O agente devolve análise, conceito, paleta 80% perene/comestível,
-           zonas e manutenção com esquema visual.
+           zonas, manutenção e uma foto de acordo com prompt produzido.
         """
     )
