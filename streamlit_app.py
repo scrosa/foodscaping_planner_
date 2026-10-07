@@ -1,13 +1,62 @@
 from __future__ import annotations
 
 import json
+import os
 from io import BytesIO
 
+import requests
 import streamlit as st
 from PIL import Image
 
 from agent.planner import FoodscapingPlanner
 from agent.vision import analyze_photo
+
+
+def generate_image_from_prompt(prompt: str, negative_prompt: str) -> Image.Image | None:
+    """Generate a final image using the Hugging Face Inference API."""
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_API_TOKEN")
+    if not token:
+        st.info(
+            "Para gerar a imagem final, define a variável de ambiente HF_TOKEN ou "
+            "HUGGINGFACE_API_TOKEN com um token do Hugging Face."
+        )
+        return None
+
+    model = os.getenv("FOODSCAPING_MODEL", "stabilityai/sdxl-turbo")
+    url = f"https://api-inference.huggingface.co/models/{model}"
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "negative_prompt": negative_prompt,
+            "num_inference_steps": 25,
+            "guidance_scale": 7.5,
+            "height": 1024,
+            "width": 1024,
+        },
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=180)
+        if response.status_code != 200:
+            try:
+                error_json = response.json()
+                message = error_json.get("error") or error_json.get("message") or response.text
+            except ValueError:
+                message = response.text
+            raise RuntimeError(message)
+
+        if response.headers.get("Content-Type", "").startswith("application/json"):
+            payload_json = response.json()
+            if isinstance(payload_json, dict) and "error" in payload_json:
+                raise RuntimeError(payload_json["error"])
+
+        image = Image.open(BytesIO(response.content))
+        return image.convert("RGB")
+    except Exception as exc:
+        st.error(f"Não foi possível gerar a imagem final: {exc}")
+        return None
+
 
 st.set_page_config(page_title="foodscaping_planner", layout="wide")
 st.title("foodscaping_planner")
@@ -77,6 +126,24 @@ if photo:
         st.code(plan["image_prompt"], language="text")
         st.caption("Negative prompt")
         st.code(plan["negative_prompt"], language="text")
+
+    generated_image = generate_image_from_prompt(
+        plan["image_prompt"],
+        plan["negative_prompt"],
+    )
+
+    if generated_image is not None:
+        st.subheader("Imagem gerada")
+        st.image(generated_image, use_container_width=True)
+
+        buf = BytesIO()
+        generated_image.save(buf, format="PNG")
+        st.download_button(
+            "Descarregar imagem gerada",
+            data=buf.getvalue(),
+            file_name="foodscaping_generated.png",
+            mime="image/png",
+        )
 
     st.divider()
     st.subheader("1. Análise do sítio")
