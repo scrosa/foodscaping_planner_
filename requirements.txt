@@ -5,3 +5,4 @@ python-dotenv>=1.0.0
 transformers
 torch
 Pillow
+matplotlib>=3.5.0
