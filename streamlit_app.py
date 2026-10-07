@@ -7,7 +7,6 @@ import streamlit as st
 from PIL import Image
 
 from agent.planner import FoodscapingPlanner
-from agent.svg_generator import generate_landscape_svg
 from agent.vision import analyze_photo
 
 st.set_page_config(page_title="foodscaping_planner", layout="wide")
@@ -70,25 +69,26 @@ if photo:
     )
 
     with col_b:
-        st.subheader("Depois (projeto de paisagismo)")
-        svg = generate_landscape_svg(plan, width=1100, height=760)
-        st.components.v1.html(
-            f"<div style='padding:0; background:#f8f8f5; border-radius:8px;'>{svg}</div>",
-            height=780,
-            scrolling=False,
-        )
-
-        with st.expander("Ver prompt de imagem (opcional)"):
-            st.code(plan["image_prompt"], language="text")
-            st.caption("Negative prompt")
-            st.code(plan["negative_prompt"], language="text")
-
-        st.download_button(
-            "Descarregar desenho SVG",
-            data=svg.encode("utf-8"),
-            file_name="foodscaping_project.svg",
-            mime="image/svg+xml",
-        )
+        st.subheader("Depois (ilustração)")
+        with st.spinner("Gerando ilustração de paisagismo..."):
+            from agent.image_generator import generate_illustration
+            illustration = generate_illustration(
+                prompt=plan["image_prompt"],
+                negative_prompt=plan["negative_prompt"]
+            )
+        
+        if illustration:
+            st.image(illustration, use_container_width=True)
+            buf = BytesIO()
+            illustration.save(buf, format="PNG")
+            st.download_button(
+                "Descarregar ilustração",
+                data=buf.getvalue(),
+                file_name="foodscaping_illustration.png",
+                mime="image/png",
+            )
+        else:
+            st.warning("Não foi possível gerar a ilustração. Verifique a conexão ou tente mais tarde.")
 
     st.divider()
     st.subheader("1. Análise do sítio")
@@ -172,6 +172,6 @@ else:
         1. Carrega uma foto nítida, de dia, em perspetiva.
         2. Preenche clima, sol, irrigação e restrições na barra lateral.
         3. O agente devolve análise, conceito, paleta 80% perene/comestível,
-           zonas, manutenção e uma ilustração em SVG do projeto de paisagismo.
+           zonas, manutenção e uma ilustração gerada.
         """
     )
